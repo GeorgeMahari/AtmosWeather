@@ -269,9 +269,30 @@ export function parseGeocodingResponse(raw: unknown): GeoLocation[] {
   })
 }
 
+/** "47.01°N, 28.86°E" */
+export function formatCoordinates(latitude: number, longitude: number, digits = 2): string {
+  const part = (value: number, positive: string, negative: string) =>
+    `${Math.abs(value).toFixed(digits)}°${value >= 0 ? positive : negative}`
+  return `${part(latitude, 'N', 'S')}, ${part(longitude, 'E', 'W')}`
+}
+
+const COORDINATE_NAME = /^\s*-?\d{1,3}(\.\d+)?\s*°?\s*[NSEW]?\s*,\s*-?\d{1,3}(\.\d+)?\s*°?\s*[NSEW]?\s*$/i
+
+/** True when a location's "name" is only a coordinate pair, i.e. no place name is known. */
+export function isCoordinateName(name: string): boolean {
+  return COORDINATE_NAME.test(name)
+}
+
+/** The place name to show; never raw coordinates (those are shown separately). */
+export function locationTitle(location: GeoLocation): string {
+  if (!isCoordinateName(location.name)) return location.name
+  return location.admin1 ?? location.country ?? 'Unnamed place'
+}
+
 /** "Springfield, Illinois, United States" — skipping repeated parts. */
 export function locationSubtitle(location: GeoLocation): string {
-  return [location.admin1, location.country].filter((part) => part && part !== location.name).join(', ')
+  const title = locationTitle(location)
+  return [location.admin1, location.country].filter((part) => part && part !== title).join(', ')
 }
 
 // ---------------------------------------------------------------------------

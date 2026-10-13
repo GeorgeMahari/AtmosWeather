@@ -1,5 +1,5 @@
 import type { GeoLocation } from '../types/weatherTypes'
-import { locationId, parseGeocodingResponse } from '../utils/weatherTransformers'
+import { formatCoordinates, locationId, parseGeocodingResponse } from '../utils/weatherTransformers'
 import { RequestCache } from './cache'
 import { fetchJson, withSignal } from './http'
 
@@ -8,10 +8,13 @@ const SEARCH_URL = 'https://geocoding-api.open-meteo.com/v1/search'
 
 /**
  * Open-Meteo has no reverse geocoder, so naming a coordinate (device location,
- * map click) uses BigDataCloud's free client-side endpoint. It is optional:
- * if it fails the coordinates are still used, just with a generic label.
+ * map click, a shared link without a name) asks two free, key-less services in
+ * turn: OpenStreetMap Nominatim, then BigDataCloud. Either can be unavailable
+ * or blocked by a browser extension; if both fail the coordinates still work,
+ * the place just has no name.
  */
-const REVERSE_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client'
+const BIGDATACLOUD_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client'
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
 
 const searchCache = new RequestCache<GeoLocation[]>({ ttlMs: 60 * 60_000 })
 
@@ -28,36 +31,62 @@ export function searchLocations(query: string, signal?: AbortSignal, count = 8):
   return withSignal(shared, signal)
 }
 
+type PlaceName = Pick<GeoLocation, 'admin1' | 'country' | 'countryCode'> & { name?: string }
+
+const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined)
+const firstText = (...values: unknown[]) => values.map(text).find((value) => value !== undefined)
+
+async function viaBigDataCloud(latitude: number, longitude: number, signal?: AbortSignal): Promise<PlaceName | null> {
+  const params = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude), localityLanguage: language() })
+  const raw = await fetchJson(`${BIGDATACLOUD_URL}?${params}`, { signal, retries: 0, timeoutMs: 6000 })
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  return {
+    name: firstText(r.city, r.locality),
+    admin1: text(r.principalSubdivision),
+    country: text(r.countryName),
+    countryCode: text(r.countryCode),
+  }
+}
+
+async function viaNominatim(latitude: number, longitude: number, signal?: AbortSignal): Promise<PlaceName | null> {
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    lat: String(latitude),
+    lon: String(longitude),
+    zoom: '12',
+    'accept-language': language(),
+  })
+  const raw = await fetchJson(`${NOMINATIM_URL}?${params}`, { signal, retries: 0, timeoutMs: 6000 })
+  const address = (raw as { address?: Record<string, unknown> } | null)?.address
+  if (typeof address !== 'object' || address === null) return null
+  return {
+    name: firstText(address.city, address.town, address.village, address.municipality, address.hamlet, address.suburb, address.county),
+    admin1: firstText(address.state, address.region, address.county),
+    country: text(address.country),
+    countryCode: text(address.country_code)?.toUpperCase(),
+  }
+}
+
 export async function reverseGeocode(latitude: number, longitude: number, signal?: AbortSignal): Promise<GeoLocation> {
-  const fallback: GeoLocation = {
+  const unnamed: GeoLocation = {
     id: locationId(latitude, longitude),
-    name: `${Math.abs(latitude).toFixed(2)}°${latitude >= 0 ? 'N' : 'S'}, ${Math.abs(longitude).toFixed(2)}°${longitude >= 0 ? 'E' : 'W'}`,
+    name: formatCoordinates(latitude, longitude),
     latitude,
     longitude,
   }
-  try {
-    const params = new URLSearchParams({
-      latitude: String(latitude),
-      longitude: String(longitude),
-      localityLanguage: language(),
-    })
-    const raw = await fetchJson(`${REVERSE_URL}?${params}`, { signal, retries: 0, timeoutMs: 6000 })
-    if (typeof raw !== 'object' || raw === null) return fallback
-    const r = raw as Record<string, unknown>
-    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
-    const name = str(r.city) ?? str(r.locality)
-    if (!name) return { ...fallback, country: str(r.countryName), countryCode: str(r.countryCode) }
-    return {
-      ...fallback,
-      name,
-      admin1: str(r.principalSubdivision),
-      country: str(r.countryName),
-      countryCode: str(r.countryCode),
+  let region: PlaceName | null = null
+  for (const provider of [viaNominatim, viaBigDataCloud]) {
+    try {
+      const place = await provider(latitude, longitude, signal)
+      if (place?.name) return { ...unnamed, ...place, name: place.name }
+      region ??= place
+    } catch (error) {
+      if (signal?.aborted) throw error
     }
-  } catch (error) {
-    if (signal?.aborted) throw error
-    return fallback
   }
+  // No locality known (open sea, wilderness): keep any region/country we did get.
+  return { ...unnamed, admin1: region?.admin1, country: region?.country, countryCode: region?.countryCode }
 }
 
 const FALLBACK_DEFAULT: GeoLocation = {

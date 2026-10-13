@@ -69,7 +69,7 @@ npm run dev        # start the dev server → http://localhost:5173
 | Forecast (current, hourly, daily) | [Open-Meteo Forecast API](https://open-meteo.com/en/docs)      | none |
 | Place search            | [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) | none |
 | Air quality and pollen  | [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) (CAMS) | none |
-| Naming a coordinate (device location, map click) | [BigDataCloud reverse geocoding](https://www.bigdatacloud.com/free-api/free-reverse-geocode-to-city-api) | none |
+| Naming a coordinate (device location, map click, link without a name) | [OpenStreetMap Nominatim](https://nominatim.org/release-docs/latest/api/Reverse/), falling back to [BigDataCloud](https://www.bigdatacloud.com/free-api/free-reverse-geocode-to-city-api) | none |
 | Radar tiles             | [RainViewer public API](https://www.rainviewer.com/api.html)             | none |
 | Base map tiles          | [OpenStreetMap](https://www.openstreetmap.org/copyright) standard tiles  | none |
 

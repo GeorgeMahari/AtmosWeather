@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { resolveDefaultLocation } from '../services/geocodingApi'
+import { resolveDefaultLocation, reverseGeocode } from '../services/geocodingApi'
 import type { GeoLocation } from '../types/weatherTypes'
+import { isCoordinateName, locationTitle } from '../utils/weatherTransformers'
 import {
   STORAGE_KEYS,
   asLocation,
@@ -67,7 +68,22 @@ export function LocationsProvider({ children }: { children: ReactNode }) {
     if (window.location.search !== search) {
       window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`)
     }
-    document.title = `${location.name} — Atmos Weather`
+    document.title = `${locationTitle(location)} — Atmos Weather`
+  }, [location])
+
+  // A location known only by coordinates (a shared link without a name, or a
+  // lookup that failed earlier) gets one attempt at finding its place name.
+  const nameLookups = useRef(new Set<string>())
+  useEffect(() => {
+    if (!location || !isCoordinateName(location.name) || nameLookups.current.has(location.id)) return
+    const { id, latitude, longitude } = location
+    nameLookups.current.add(id)
+    reverseGeocode(latitude, longitude)
+      .then((named) => {
+        if (isCoordinateName(named.name) && !named.country) return
+        setLocation((current) => (current?.id === id ? { ...current, ...named, id } : current))
+      })
+      .catch(() => nameLookups.current.delete(id))
   }, [location])
 
   useEffect(() => writeStorage(STORAGE_KEYS.recents, recents), [recents])

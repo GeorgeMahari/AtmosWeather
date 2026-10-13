@@ -1,5 +1,5 @@
 import type { GeoLocation } from '../types/weatherTypes'
-import { locationId } from './weatherTransformers'
+import { formatCoordinates, isCoordinateName, locationId } from './weatherTransformers'
 
 /** Only lightweight preferences and location lists are stored client-side. */
 export const STORAGE_KEYS = {
@@ -78,7 +78,7 @@ export function locationFromUrl(search: string): GeoLocation | null {
   return asLocation({
     latitude,
     longitude,
-    name: params.get('name')?.slice(0, 80) || `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`,
+    name: params.get('name')?.slice(0, 80) || formatCoordinates(latitude, longitude),
     admin1: params.get('region')?.slice(0, 80),
     country: params.get('country')?.slice(0, 80),
   })
@@ -88,8 +88,9 @@ export function locationToSearch(location: GeoLocation): string {
   const params = new URLSearchParams({
     lat: location.latitude.toFixed(4),
     lon: location.longitude.toFixed(4),
-    name: location.name,
   })
+  // A coordinate-only label is not a name; the link's lat/lon already carry it.
+  if (!isCoordinateName(location.name)) params.set('name', location.name)
   if (location.admin1) params.set('region', location.admin1)
   if (location.country) params.set('country', location.country)
   return `?${params}`

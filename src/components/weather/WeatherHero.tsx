@@ -8,7 +8,7 @@ import { formatLongDate, formatTime } from '../../utils/dateFormatting'
 import { UNIT_LABELS, cardinalDirection, convertTemperature } from '../../utils/unitConversions'
 import { getCondition, uvCategory } from '../../utils/weatherConditions'
 import { buildSummary } from '../../utils/weatherSummary'
-import { locationSubtitle, todayIndex, withHourlyFallback } from '../../utils/weatherTransformers'
+import { formatCoordinates, locationSubtitle, locationTitle, todayIndex, withHourlyFallback } from '../../utils/weatherTransformers'
 import { AnimatedNumber } from '../common/AnimatedNumber'
 import { cx } from '../common/primitives'
 import { WeatherIcon } from './WeatherIcon'
@@ -105,9 +105,15 @@ export function WeatherHero({ location, data, now }: WeatherHeroProps) {
         className="hero-text grid gap-8 pt-6 pb-2 sm:pt-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end"
       >
         <div className="min-w-0">
-          <h1 id="now-title" className="text-3xl font-semibold tracking-tight text-balance text-ink sm:text-4xl lg:text-5xl">
-            {location.name}
-          </h1>
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <h1 id="now-title" className="text-3xl font-semibold tracking-tight text-balance text-ink sm:text-4xl lg:text-5xl">
+              {locationTitle(location)}
+            </h1>
+            <p className="tabular text-base font-medium text-ink-soft sm:text-lg">
+              <span className="sr-only">Coordinates: </span>
+              {formatCoordinates(location.latitude, location.longitude)}
+            </p>
+          </div>
           <p className="mt-1.5 text-sm text-ink-soft sm:text-base">
             {subtitle && <span>{subtitle} · </span>}
             <time dateTime={new Date(now).toISOString()} className="tabular">

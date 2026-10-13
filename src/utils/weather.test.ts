@@ -20,6 +20,9 @@ import {
 import { EUROPEAN_AQI_BANDS, US_AQI_BANDS, aqiBand, beaufort, getCondition, getIconKey, selectScene, uvCategory } from './weatherConditions'
 import {
   currentHourIndex,
+  formatCoordinates,
+  isCoordinateName,
+  locationTitle,
   parseAirQualityResponse,
   parseForecastResponse,
   parseGeocodingResponse,
@@ -373,6 +376,31 @@ describe('solar position', () => {
   })
 })
 
+describe('place names and coordinates', () => {
+  const base = { id: 'x', latitude: 47.0105, longitude: 28.8638 }
+
+  it('formats coordinates with hemispheres', () => {
+    expect(formatCoordinates(47.0105, 28.8638)).toBe('47.01°N, 28.86°E')
+    expect(formatCoordinates(-33.8688, -70.6693)).toBe('33.87°S, 70.67°W')
+  })
+
+  it('recognises coordinate-only labels', () => {
+    expect(isCoordinateName('47.01°N, 28.86°E')).toBe(true)
+    expect(isCoordinateName('47.01, 28.86')).toBe(true)
+    expect(isCoordinateName('-33.87, -70.67')).toBe(true)
+    expect(isCoordinateName('Chișinău')).toBe(false)
+    expect(isCoordinateName('Area 51, Nevada')).toBe(false)
+  })
+
+  it('never uses raw coordinates as the place title', () => {
+    expect(locationTitle({ ...base, name: 'Chișinău', country: 'Moldova' })).toBe('Chișinău')
+    expect(locationTitle({ ...base, name: '47.01°N, 28.86°E', admin1: 'Chișinău', country: 'Moldova' })).toBe('Chișinău')
+    expect(locationTitle({ ...base, name: '47.01°N, 28.86°E', country: 'Moldova' })).toBe('Moldova')
+    expect(locationTitle({ ...base, name: '47.01°N, 28.86°E' })).toBe('Unnamed place')
+    expect(locationToSearch({ ...base, name: '47.01°N, 28.86°E' })).not.toContain('name=')
+  })
+})
+
 describe('shareable URLs', () => {
   it('round-trips a location through the query string', () => {
     const search = locationToSearch({ id: 'x', name: 'São Paulo', admin1: 'São Paulo', country: 'Brazil', latitude: -23.5475, longitude: -46.63611 })
@@ -385,6 +413,6 @@ describe('shareable URLs', () => {
     expect(locationFromUrl('?lat=abc&lon=1')).toBeNull()
     expect(locationFromUrl('?lat=120&lon=10')).toBeNull()
     expect(locationFromUrl('?lat=&lon=')).toBeNull()
-    expect(locationFromUrl('?lat=10&lon=20')?.name).toBe('10.00, 20.00')
+    expect(locationFromUrl('?lat=10&lon=20')?.name).toBe('10.00°N, 20.00°E')
   })
 })

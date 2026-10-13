@@ -17,6 +17,7 @@ import { useSettings } from '../../app/SettingsContext'
 import type { GeolocationState } from '../../hooks/useGeolocation'
 import type { WeatherState } from '../../hooks/useWeather'
 import { formatRelative, formatTime, formatWeekday } from '../../utils/dateFormatting'
+import { locationTitle } from '../../utils/weatherTransformers'
 import { Segmented, cx } from '../common/primitives'
 import { LocationSearch } from './LocationSearch'
 import { SettingsMenu } from './SettingsMenu'
@@ -88,7 +89,7 @@ export function Header({ weather, geolocation, now }: HeaderProps) {
 
           {location && data && (
             <p className="hidden min-w-0 flex-col leading-tight xl:flex">
-              <span className="truncate text-sm font-medium text-ink">{location.name}</span>
+              <span className="truncate text-sm font-medium text-ink">{locationTitle(location)}</span>
               <span className="tabular truncate text-xs text-ink-mute">
                 {formatWeekday(now, data.timezone)} {formatTime(now, data.timezone, settings.timeFormat)} local
               </span>
